@@ -324,6 +324,24 @@ class NotificationService(val context: Context) {
             }
 
             builder.setCustomBigContentView(expandedViews)
+
+            // RemoteViews for collapsed (pill view / notification header)
+            val collapsedViews = RemoteViews(context.packageName, R.layout.layout_liveupdate_collapsed)
+            collapsedViews.setTextViewText(R.id.liveupdate_collapsed_title, subscription.displayName)
+            val collapsedTagsText = splitTags(notification.tags).joinToString(" ")
+            if (collapsedTagsText.isNotEmpty()) {
+                collapsedViews.setTextViewText(R.id.liveupdate_collapsed_tags, collapsedTagsText)
+                collapsedViews.setViewVisibility(R.id.liveupdate_collapsed_tags, android.view.View.VISIBLE)
+            } else {
+                collapsedViews.setViewVisibility(R.id.liveupdate_collapsed_tags, android.view.View.GONE)
+            }
+            if (notification.priority == PRIORITY_MAX) {
+                collapsedViews.setViewVisibility(R.id.liveupdate_collapsed_star, android.view.View.VISIBLE)
+            } else {
+                collapsedViews.setViewVisibility(R.id.liveupdate_collapsed_star, android.view.View.GONE)
+            }
+            builder.setCustomContentView(collapsedViews)
+
             builder.setContentInfo(if (hasProgress) "${notification.attachment?.progress ?: 0}%" else "")
         } catch (_: Exception) {
             // If custom views fail, notification renders with default style

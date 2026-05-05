@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="12dp">
+
+    <!-- Topic / Subscription name -->
+    <TextView
+        android:id="@+id/liveupdate_collapsed_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="#1A1A1A"
+        android:textSize="13sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium" />
+
+    <!-- Priority star -->
+    <TextView
+        android:id="@+id/liveupdate_collapsed_star"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:text="⭐"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <!-- Emoji tags -->
+    <TextView
+        android:id="@+id/liveupdate_collapsed_tags"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:textColor="#888888"
+        android:textSize="12sp"
+        android:maxLines="1" />
+
+</LinearLayout>
