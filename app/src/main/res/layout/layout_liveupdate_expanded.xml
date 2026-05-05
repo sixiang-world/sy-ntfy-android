@@ -24,6 +24,15 @@
             android:fontFamily="sans-serif-medium" />
 
         <TextView
+            android:id="@+id/liveupdate_priority_star"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="⭐"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/liveupdate_tags"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

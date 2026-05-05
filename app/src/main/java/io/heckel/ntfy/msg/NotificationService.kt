@@ -289,6 +289,13 @@ class NotificationService(val context: Context) {
                 expandedViews.setViewVisibility(R.id.liveupdate_tags, android.view.View.GONE)
             }
 
+            // Priority star: show for max priority (priority=5)
+            if (notification.priority == PRIORITY_MAX) {
+                expandedViews.setViewVisibility(R.id.liveupdate_priority_star, android.view.View.VISIBLE)
+            } else {
+                expandedViews.setViewVisibility(R.id.liveupdate_priority_star, android.view.View.GONE)
+            }
+
             expandedViews.setTextViewText(R.id.liveupdate_title, subscription.displayName)
             expandedViews.setTextViewText(R.id.liveupdate_message, notification.title ?: "")
 
@@ -324,15 +331,25 @@ class NotificationService(val context: Context) {
     }
 
     /**
-     * Builds a RemoteViews row containing the click button (if set) and
-     * all ntfy user action buttons (view/broadcast/http/copy).
-     * Returns null if neither is present.
+     * Builds a RemoteViews row containing the click button (if set),
+     * ntfy user action buttons (view/broadcast/http/copy),
+     * and ntfy attachment action buttons (open/browse/download/cancel).
+     * Returns null if nothing to show.
      */
     private fun buildActionsRow(notification: Notification): RemoteViews? {
         val hasClick = notification.click.isNotEmpty()
         val hasActions = !notification.actions.isNullOrEmpty()
+        val attachment = notification.attachment
+        val hasAttachmentContentUri = attachment?.contentUri != null
+        val hasAttachmentProgress = attachment?.progress in 0..99
+        val hasAttachmentFailed = attachment?.progress == ATTACHMENT_PROGRESS_FAILED
+        val hasAttachmentNone = attachment?.progress == ATTACHMENT_PROGRESS_NONE
+        val canOpen = hasAttachmentContentUri && canOpenAttachment(attachment)
+        val canBrowse = hasAttachmentContentUri
+        val canDownload = !hasAttachmentContentUri && (hasAttachmentNone || hasAttachmentFailed)
+        val canCancel = !hasAttachmentContentUri && hasAttachmentProgress
 
-        if (!hasClick && !hasActions) return null
+        if (!hasClick && !hasActions && !canOpen && !canBrowse && !canDownload && !canCancel) return null
 
         // Container that holds all buttons in a horizontal row
         val container = RemoteViews(context.packageName, R.layout.liveupdate_actions_row)
@@ -343,6 +360,53 @@ class NotificationService(val context: Context) {
             clickButton.setTextViewText(R.id.liveupdate_action_btn, context.getString(R.string.notification_popup_action_open))
             clickButton.setOnClickFillInIntent(R.id.liveupdate_action_btn, Intent(Intent.ACTION_VIEW, notification.click.toUri()))
             container.addView(R.id.liveupdate_actions_container, clickButton)
+        }
+
+        // Open button: for completed downloads
+        if (canOpen) {
+            val openButton = RemoteViews(context.packageName, R.layout.liveupdate_action_button)
+            openButton.setTextViewText(R.id.liveupdate_action_btn, context.getString(R.string.notification_popup_action_open))
+            val openIntent = Intent(Intent.ACTION_VIEW, attachment.contentUri.toUri()).apply {
+                setDataAndType(attachment.contentUri.toUri(), attachment.type ?: "application/octet-stream")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            openButton.setOnClickFillInIntent(R.id.liveupdate_action_btn, openIntent)
+            container.addView(R.id.liveupdate_actions_container, openButton)
+        }
+
+        // Browse button: open system downloads
+        if (canBrowse) {
+            val browseButton = RemoteViews(context.packageName, R.layout.liveupdate_action_button)
+            browseButton.setTextViewText(R.id.liveupdate_action_btn, context.getString(R.string.notification_popup_action_browse))
+            val browseIntent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            browseButton.setOnClickFillInIntent(R.id.liveupdate_action_btn, browseIntent)
+            container.addView(R.id.liveupdate_actions_container, browseButton)
+        }
+
+        // Download button: for failed/not-started attachments
+        if (canDownload) {
+            val downloadButton = RemoteViews(context.packageName, R.layout.liveupdate_action_button)
+            downloadButton.setTextViewText(R.id.liveupdate_action_btn, context.getString(R.string.notification_popup_action_download))
+            val downloadIntent = Intent(context, UserActionBroadcastReceiver::class.java).apply {
+                putExtra(BROADCAST_EXTRA_TYPE, BROADCAST_TYPE_DOWNLOAD_START)
+                putExtra(BROADCAST_EXTRA_NOTIFICATION_ID, notification.id)
+            }
+            downloadButton.setOnClickFillInIntent(R.id.liveupdate_action_btn, downloadIntent)
+            container.addView(R.id.liveupdate_actions_container, downloadButton)
+        }
+
+        // Cancel button: for in-progress downloads
+        if (canCancel) {
+            val cancelButton = RemoteViews(context.packageName, R.layout.liveupdate_action_button)
+            cancelButton.setTextViewText(R.id.liveupdate_action_btn, context.getString(R.string.notification_popup_action_cancel))
+            val cancelIntent = Intent(context, UserActionBroadcastReceiver::class.java).apply {
+                putExtra(BROADCAST_EXTRA_TYPE, BROADCAST_TYPE_DOWNLOAD_CANCEL)
+                putExtra(BROADCAST_EXTRA_NOTIFICATION_ID, notification.id)
+            }
+            cancelButton.setOnClickFillInIntent(R.id.liveupdate_action_btn, cancelIntent)
+            container.addView(R.id.liveupdate_actions_container, cancelButton)
         }
 
         // Add ntfy user action buttons
