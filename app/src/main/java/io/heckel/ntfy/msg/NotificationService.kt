@@ -280,6 +280,15 @@ class NotificationService(val context: Context) {
 
             // RemoteViews for expanded (expanded content view / pill expanded)
             val expandedViews = RemoteViews(context.packageName, R.layout.layout_liveupdate_expanded)
+            // Tags: show emoji tags when available
+            val tagsText = splitTags(notification.tags).joinToString(" ")
+            if (tagsText.isNotEmpty()) {
+                expandedViews.setTextViewText(R.id.liveupdate_tags, tagsText)
+                expandedViews.setViewVisibility(R.id.liveupdate_tags, android.view.View.VISIBLE)
+            } else {
+                expandedViews.setViewVisibility(R.id.liveupdate_tags, android.view.View.GONE)
+            }
+
             expandedViews.setTextViewText(R.id.liveupdate_title, subscription.displayName)
             expandedViews.setTextViewText(R.id.liveupdate_message, notification.title ?: "")
 
