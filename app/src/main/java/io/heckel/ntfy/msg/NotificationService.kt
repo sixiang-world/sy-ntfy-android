@@ -239,6 +239,15 @@ class NotificationService(val context: Context) {
         val shouldBeOngoing = insistent || hasProgress || hasTag1LiveUpdate
         val isLiveUpdateEligible = hasProgress || insistent || hasTag1LiveUpdate
 
+        // Tell the system this notification should be shown as a LiveUpdate (Android 16+).
+        // Use reflection because AndroidX may not expose setLiveUpdateEnabled() yet.
+        try {
+            val method = builder.javaClass.getMethod("setLiveUpdateEnabled", Boolean::class.javaPrimitiveType)
+            method.invoke(builder, true)
+        } catch (_: Exception) {
+            // Silently ignore if method not available
+        }
+
         // For native Android 16+ LiveUpdate (Pixel, etc.)
         // setCategory(CATEGORY_PROGRESS) + setOngoing(true) + requestPromotedOngoing() trigger
         // the notification to be promoted to the Live Update UI.
