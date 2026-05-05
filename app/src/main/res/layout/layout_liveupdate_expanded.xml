@@ -83,15 +83,13 @@
 
     </LinearLayout>
 
-    <!-- Click/Open button: shown when notification.click is set -->
-    <Button
-        android:id="@+id/liveupdate_click_button"
-        android:layout_width="wrap_content"
-        android:layout_height="36dp"
+    <!-- Actions row: dynamically populated with click button + ntfy action buttons -->
+    <LinearLayout
+        android:id="@+id/liveupdate_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:layout_marginTop="10dp"
-        android:layout_gravity="end"
-        android:text="@string/notification_popup_action_open"
-        android:textSize="13sp"
-        android:visibility="gone" />
+        android:gravity="end" />
 
 </LinearLayout>

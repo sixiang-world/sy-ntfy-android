@@ -310,12 +310,10 @@ class NotificationService(val context: Context) {
                 expandedViews.setViewVisibility(R.id.liveupdate_progress_row, android.view.View.GONE)
             }
 
-            // Click/Open button: shown when notification.click is set
-            if (notification.click.isNotEmpty()) {
-                expandedViews.setViewVisibility(R.id.liveupdate_click_button, android.view.View.VISIBLE)
-                expandedViews.setOnClickPendingIntent(R.id.liveupdate_click_button, createClickPendingIntent(notification))
-            } else {
-                expandedViews.setViewVisibility(R.id.liveupdate_click_button, android.view.View.GONE)
+            // Actions row: click button + ntfy user actions
+            val actionsRow = buildActionsRow(notification)
+            if (actionsRow != null) {
+                expandedViews.addView(R.id.liveupdate_actions, actionsRow)
             }
 
             builder.setCustomBigContentView(expandedViews)
@@ -326,18 +324,59 @@ class NotificationService(val context: Context) {
     }
 
     /**
-     * Creates a PendingIntent for the LiveUpdate custom click button.
-     * Uses fillInIntent to pass the click URL dynamically.
+     * Builds a RemoteViews row containing the click button (if set) and
+     * all ntfy user action buttons (view/broadcast/http/copy).
+     * Returns null if neither is present.
      */
-    private fun createClickPendingIntent(notification: Notification): PendingIntent {
-        val clickUri = notification.click.toUri()
-        val intent = Intent(Intent.ACTION_VIEW, clickUri)
-        return PendingIntent.getActivity(
-            context,
-            notification.notificationId,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+    private fun buildActionsRow(notification: Notification): RemoteViews? {
+        val hasClick = notification.click.isNotEmpty()
+        val hasActions = !notification.actions.isNullOrEmpty()
+
+        if (!hasClick && !hasActions) return null
+
+        // Container that holds all buttons in a horizontal row
+        val container = RemoteViews(context.packageName, R.layout.liveupdate_actions_row)
+
+        // Add click/Open button first
+        if (hasClick) {
+            val clickButton = RemoteViews(context.packageName, R.layout.liveupdate_action_button)
+            clickButton.setTextViewText(R.id.liveupdate_action_btn, context.getString(R.string.notification_popup_action_open))
+            clickButton.setOnClickFillInIntent(R.id.liveupdate_action_btn, Intent(Intent.ACTION_VIEW, notification.click.toUri()))
+            container.addView(R.id.liveupdate_actions_container, clickButton)
+        }
+
+        // Add ntfy user action buttons
+        if (hasActions) {
+            notification.actions!!.forEach { action ->
+                val label = formatActionLabel(action)
+                val actionButton = RemoteViews(context.packageName, R.layout.liveupdate_action_button)
+                actionButton.setTextViewText(R.id.liveupdate_action_btn, label)
+                val actionIntent = Intent(context, UserActionBroadcastReceiver::class.java).apply {
+                    putExtra(BROADCAST_EXTRA_TYPE, BROADCAST_TYPE_USER_ACTION)
+                    putExtra(BROADCAST_EXTRA_NOTIFICATION_ID, notification.id)
+                    putExtra(BROADCAST_EXTRA_ACTION_ID, action.id)
+                }
+                actionButton.setOnClickFillInIntent(R.id.liveupdate_action_btn, actionIntent)
+                container.addView(R.id.liveupdate_actions_container, actionButton)
+            }
+        }
+
+        return container
+    }
+
+    /**
+     * Formats the label for a ntfy user action (view/broadcast/http/copy).
+     * Falls back to the action type if label is empty.
+     */
+    private fun formatActionLabel(action: Action): String {
+        if (action.label.isNotEmpty()) return action.label
+        return when (action.action.lowercase(Locale.getDefault())) {
+            "view" -> "View"
+            "broadcast" -> "Broadcast"
+            "http" -> "HTTP"
+            "copy" -> "Copy"
+            else -> action.action
+        }
     }
 
     private fun formatFileSize(bytes: Long): String {

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Button xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/liveupdate_action_btn"
+    android:layout_width="wrap_content"
+    android:layout_height="32dp"
+    android:layout_marginStart="8dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:textSize="13sp"
+    android:minWidth="0dp"
+    android:minHeight="0dp"
+    android:background="?android:attr/buttonBarButtonStyle" />
