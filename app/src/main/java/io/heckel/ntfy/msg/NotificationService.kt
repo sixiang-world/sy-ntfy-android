@@ -235,23 +235,27 @@ class NotificationService(val context: Context) {
             return
         }
         val hasProgress = notification.attachment?.progress in 0..99
-        val shouldBeOngoing = insistent || hasProgress
+        val hasTag1LiveUpdate = splitTags(notification.tags).contains("1")
+        val shouldBeOngoing = insistent || hasProgress || hasTag1LiveUpdate
+        val isLiveUpdateEligible = hasProgress || insistent || hasTag1LiveUpdate
 
         // For native Android 16+ LiveUpdate (Pixel, etc.)
         // setCategory(CATEGORY_PROGRESS) + setOngoing(true) + requestPromotedOngoing() trigger
         // the notification to be promoted to the Live Update UI.
-        builder.setCategory(NotificationCompat.CATEGORY_PROGRESS)
+        if (isLiveUpdateEligible) {
+            builder.setCategory(NotificationCompat.CATEGORY_PROGRESS)
+        }
         builder.setOngoing(shouldBeOngoing)
 
         // Apply custom LiveUpdate views when a progress bar is shown
-        if (hasProgress) {
+        if (hasProgress || hasTag1LiveUpdate) {
             applyLiveUpdateCustomViews(builder, subscription, notification)
         }
 
         // requestPromotedOngoing() is required for native Android 16 promotion.
         // Using reflection to maintain compatibility with AndroidX NotificationCompat versions
         // that may not have this method. If it fails, notification still shows normally.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
                 val method = builder.javaClass.getMethod("requestPromotedOngoing")
                 method.invoke(builder)
