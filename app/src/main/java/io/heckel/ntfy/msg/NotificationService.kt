@@ -269,7 +269,29 @@ class NotificationService(val context: Context) {
                 val method = builder.javaClass.getMethod("requestPromotedOngoing")
                 method.invoke(builder)
             } catch (_: Exception) {
-                // Silently ignore if method not available (e.g., older AndroidX, non-Pixel devices)
+                // Silently ignore
+            }
+        }
+
+        // ColorOS-specific: android.requestPromotedOngoing is a private bundle extra
+        // that ColorOS reads to promote the notification to LiveUpdate UI.
+        // This is the actual key that base.apk uses to show LiveUpdate on ColorOS.
+        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            try {
+                builder.extras.putBoolean("android.requestPromotedOngoing", true)
+            } catch (_: Exception) {
+                // Silently ignore
+            }
+        }
+
+        // ColorOS-specific: android.requestPromotedOngoing is a private bundle extra
+        // that ColorOS reads to promote the notification to LiveUpdate UI.
+        // This is the actual key that base.apk uses to show LiveUpdate on ColorOS.
+        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            try {
+                builder.extras.putBoolean("android.requestPromotedOngoing", true)
+            } catch (_: Exception) {
+                // Silently ignore
             }
         }
     }
