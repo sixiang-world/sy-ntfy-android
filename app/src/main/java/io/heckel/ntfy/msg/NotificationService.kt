@@ -267,7 +267,8 @@ class NotificationService(val context: Context) {
 
     /**
      * Apply custom RemoteViews for LiveUpdate expanded/pill content.
-     * Shows: topic name, message title, download progress bar + speed.
+     * Shows: topic name, message title, optional download progress bar,
+     * optional click-to-URL button.
      * This enriches the LiveUpdate UI beyond the default system rendering.
      */
     private fun applyLiveUpdateCustomViews(builder: NotificationCompat.Builder, subscription: Subscription, notification: Notification) {
@@ -275,29 +276,59 @@ class NotificationService(val context: Context) {
             return
         }
         try {
+            val hasProgress = notification.attachment?.progress in 0..99
+
             // RemoteViews for expanded (expanded content view / pill expanded)
             val expandedViews = RemoteViews(context.packageName, R.layout.layout_liveupdate_expanded)
             expandedViews.setTextViewText(R.id.liveupdate_title, subscription.displayName)
             expandedViews.setTextViewText(R.id.liveupdate_message, notification.title ?: "")
 
-            val progress = notification.attachment?.progress ?: 0
-            expandedViews.setProgressBar(R.id.liveupdate_progress, 100, progress, false)
+            // Progress bar + row: only visible for download progress notifications
+            if (hasProgress) {
+                val progress = notification.attachment?.progress ?: 0
+                expandedViews.setProgressBar(R.id.liveupdate_progress, 100, progress, false)
+                expandedViews.setViewVisibility(R.id.liveupdate_progress, android.view.View.VISIBLE)
+                expandedViews.setViewVisibility(R.id.liveupdate_progress_row, android.view.View.VISIBLE)
 
-            val progressText = context.getString(R.string.liveupdate_progress_format, progress)
-            expandedViews.setTextViewText(R.id.liveupdate_progress_text, progressText)
+                val progressText = context.getString(R.string.liveupdate_progress_format, progress)
+                expandedViews.setTextViewText(R.id.liveupdate_progress_text, progressText)
 
-            notification.attachment?.let { attachment ->
-                attachment.size?.let { size ->
-                    val sizeText = formatFileSize(size)
-                    expandedViews.setTextViewText(R.id.liveupdate_size, sizeText)
+                notification.attachment?.size?.let { size ->
+                    expandedViews.setTextViewText(R.id.liveupdate_size, formatFileSize(size))
                 }
+            } else {
+                expandedViews.setViewVisibility(R.id.liveupdate_progress, android.view.View.GONE)
+                expandedViews.setViewVisibility(R.id.liveupdate_progress_row, android.view.View.GONE)
+            }
+
+            // Click/Open button: shown when notification.click is set
+            if (notification.click.isNotEmpty()) {
+                expandedViews.setViewVisibility(R.id.liveupdate_click_button, android.view.View.VISIBLE)
+                expandedViews.setOnClickPendingIntent(R.id.liveupdate_click_button, createClickPendingIntent(notification))
+            } else {
+                expandedViews.setViewVisibility(R.id.liveupdate_click_button, android.view.View.GONE)
             }
 
             builder.setCustomBigContentView(expandedViews)
-            builder.setContentInfo("$progress%")
+            builder.setContentInfo(if (hasProgress) "${notification.attachment?.progress ?: 0}%" else "")
         } catch (_: Exception) {
             // If custom views fail, notification renders with default style
         }
+    }
+
+    /**
+     * Creates a PendingIntent for the LiveUpdate custom click button.
+     * Uses fillInIntent to pass the click URL dynamically.
+     */
+    private fun createClickPendingIntent(notification: Notification): PendingIntent {
+        val clickUri = notification.click.toUri()
+        val intent = Intent(Intent.ACTION_VIEW, clickUri)
+        return PendingIntent.getActivity(
+            context,
+            notification.notificationId,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
     private fun formatFileSize(bytes: Long): String {
