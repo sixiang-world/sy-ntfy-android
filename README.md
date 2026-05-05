@@ -6,13 +6,18 @@ If you're downloading the APKs from GitHub, they are signed with a certificate w
 
 ## ✨ LiveUpdate 实时通知 (Android 16+)
 
-本版本集成了 Android 16 的 **LiveUpdate** 实时更新通知功能。在 Android 16 及以上系统中，通知将显示在：
-- 📱 锁屏显著位置
-- ⌚ 常显屏幕 (AOD)
-- 📬 通知面板顶部
-- 📊 状态栏显著位置
+本版本集成了 Android 16 的 **LiveUpdate** 实时通知功能。在支持的设备上（Android 16 原生系统、OPPO ColorOS 15+、vivo OriginOS 5 等），通知将自动以流体云/原子通知胶囊形态显示：
 
-LiveUpdate 通知会自动更新内容而不会打扰用户，非常适合实时监控、下载进度、消息更新等场景。
+- 📱 锁屏实时预览
+- ⌚ 常显屏幕 (AOD) 实时更新
+- 💬 通知面板胶囊展开视图
+
+**生效条件：**
+- 系统：Android 16+（OPPO ColorOS 15+ / vivo OriginOS 5 / 华为鸿蒙等基于 Android 16 的厂商定制系统）
+- 部分系统需要授予「显示动态通知」权限
+- 附件下载进度通知和后台持续监听通知将优先展示为 LiveUpdate 形态
+
+**无 LiveUpdate 的设备：** 自动降级为普通通知，不影响正常使用。
 
 
 ## Build

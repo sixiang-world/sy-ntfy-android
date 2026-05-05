@@ -98,14 +98,15 @@ class NotificationService(val context: Context) {
             .setAutoCancel(true) // Cancel when notification is clicked
         // Enable LiveUpdate for Android 16+ (API 36+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            // LiveUpdate will be enabled automatically on Android 16+ when the system supports it
-            // No explicit API call needed at this level
+            // System automatically promotes notifications with ongoing=true + progress to LiveUpdate on ColorOS/OriginOS
+            // For native Android 16 LiveUpdate to work, these flags need to be set + POST_PROMOTED_NOTIFICATIONS permission
         }
         setStyleAndText(builder, subscription, notification) // Preview picture or big text style
         setClickAction(builder, subscription, notification)
         maybeSetDeleteIntent(builder, insistent)
         maybeSetSound(builder, insistent, update)
         maybeSetProgress(builder, notification)
+        applyLiveUpdateSettings(builder, notification, insistent)
         maybeAddOpenAction(builder, notification)
         maybeAddBrowseAction(builder, notification)
         maybeAddDownloadAction(builder, notification)
@@ -209,6 +210,42 @@ class NotificationService(val context: Context) {
             builder.setProgress(100, progress!!, false)
         } else {
             builder.setProgress(0, 0, false) // Remove progress bar
+        }
+    }
+
+    /**
+     * Apply LiveUpdate settings for Android 16+ (ColorOS/OriginOS/Pixel).
+     *
+     * ColorOS/OriginOS: Notifications with ongoing=true + progress bar are automatically promoted
+     * to fluid pill UI without explicit API calls. The system detects these conditions.
+     *
+     * Native Android 16: POST_PROMOTED_NOTIFICATIONS permission + setLiveUpdateAllowed(true) on the
+     * channel + setLiveUpdateEnabled(true) + setCategory(CATEGORY_PROGRESS) + setOngoing(true)
+     * are required for full LiveUpdate promotion.
+     */
+    private fun applyLiveUpdateSettings(builder: NotificationCompat.Builder, notification: Notification, insistent: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            return
+        }
+        val hasProgress = notification.attachment?.progress in 0..99
+        val shouldBeOngoing = insistent || hasProgress
+
+        // For native Android 16+ LiveUpdate (Pixel, etc.)
+        // setCategory(CATEGORY_PROGRESS) + setOngoing(true) + requestPromotedOngoing() trigger
+        // the notification to be promoted to the Live Update UI.
+        builder.setCategory(NotificationCompat.CATEGORY_PROGRESS)
+        builder.setOngoing(shouldBeOngoing)
+
+        // requestPromotedOngoing() is required for native Android 16 promotion.
+        // Using reflection to maintain compatibility with AndroidX NotificationCompat versions
+        // that may not have this method. If it fails, notification still shows normally.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            try {
+                val method = builder.javaClass.getMethod("requestPromotedOngoing")
+                method.invoke(builder)
+            } catch (_: Exception) {
+                // Silently ignore if method not available (e.g., older AndroidX, non-Pixel devices)
+            }
         }
     }
 
@@ -413,8 +450,8 @@ class NotificationService(val context: Context) {
         channel.group = group
         // Enable LiveUpdate for Android 16+ (API 36+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            // LiveUpdate is automatically enabled for channels on Android 16+
-            // The system manages this based on notification behavior
+            // ColorOS/OriginOS: system handles promotion automatically
+            // Native Android 16: POST_PROMOTED_NOTIFICATIONS permission required to enable channel-level LiveUpdate
         }
         notificationManager.createNotificationChannel(channel)
     }

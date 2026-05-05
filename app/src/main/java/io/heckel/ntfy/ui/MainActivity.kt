@@ -395,6 +395,7 @@ class MainActivity : AppCompatActivity(), AddFragment.SubscribeListener, Notific
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_DENIED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
         }
+
     }
 
     override fun onResume() {
