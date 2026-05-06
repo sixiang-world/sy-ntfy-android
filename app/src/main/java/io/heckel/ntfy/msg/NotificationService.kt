@@ -243,7 +243,7 @@ class NotificationService(val context: Context) {
         val isLiveUpdateEligible = hasProgress || insistent || hasTag1LiveUpdate
 
         // Tell the system this notification should be shown as a LiveUpdate (Android 16+).
-        // Use reflection because AndroidX may not expose setLiveUpdateEnabled() yet.
+        // AndroidX exposes setLiveUpdateEnabled() on NotificationCompat.Builder.
         try {
             val method = builder.javaClass.getMethod("setLiveUpdateEnabled", Boolean::class.javaPrimitiveType)
             method.invoke(builder, true)
@@ -264,38 +264,78 @@ class NotificationService(val context: Context) {
             applyLiveUpdateCustomViews(builder, subscription, notification)
         }
 
-        // requestPromotedOngoing() is required for native Android 16 promotion.
-        // Using reflection to maintain compatibility with AndroidX NotificationCompat versions
-        // that may not have this method. If it fails, notification still shows normally.
-        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        // Android 16 LiveUpdate promotion requires calling on the framework Notification.Builder
+        // (not just NotificationCompat.Builder), because ColorOS reads from the framework builder's
+        // extras bundle. We need to get the internal NotificationCompatBuilder and call the
+        // framework builder methods directly.
+        val frameworkBuilder = try {
+            val compatBuilderClass = Class.forName("androidx.core.app.NotificationCompatBuilder")
+            val getBuilderMethod = compatBuilderClass.getMethod("getBuilder")
+            getBuilderMethod.invoke(builder) as? android.app.Notification.Builder
+        } catch (_: Exception) {
+            null
+        }
+
+        if (frameworkBuilder != null && isLiveUpdateEligible) {
+            // setRequestPromotedOngoing() on the framework builder (not just compat).
             try {
-                val method = builder.javaClass.getMethod("requestPromotedOngoing")
+                val method = frameworkBuilder.javaClass.getMethod("requestPromotedOngoing")
+                method.invoke(frameworkBuilder)
+            } catch (_: Exception) {
+                // Fallback to compat builder
+                try {
+                    val method = builder.javaClass.getMethod("setRequestPromotedOngoing")
+                    method.invoke(builder)
+                } catch (_: Exception) {
+                    // Silently ignore
+                }
+            }
+
+            // setShortCriticalText(null) on the framework builder.
+            // This is what Cmd2Gui calls in its g.a() method.
+            try {
+                val method = frameworkBuilder.javaClass.getMethod("setShortCriticalText", CharSequence::class.java)
+                method.invoke(frameworkBuilder, null)
+            } catch (_: Exception) {
+                // Fallback to compat builder
+                try {
+                    val method = builder.javaClass.getMethod("setShortCriticalText", CharSequence::class.java)
+                    method.invoke(builder, null)
+                } catch (_: Exception) {
+                    // Silently ignore
+                }
+            }
+
+            // ColorOS-specific: android.requestPromotedOngoing is a private bundle extra
+            // that ColorOS reads from the framework builder's extras to promote the notification.
+            try {
+                val extrasField = frameworkBuilder.javaClass.getMethod("getExtras")
+                val extras = extrasField.invoke(frameworkBuilder) as android.os.Bundle
+                extras.putBoolean("android.requestPromotedOngoing", true)
+            } catch (_: Exception) {
+                // Fallback to compat builder extras
+                try {
+                    builder.extras.putBoolean("android.requestPromotedOngoing", true)
+                } catch (_: Exception) {
+                    // Silently ignore
+                }
+            }
+        } else if (isLiveUpdateEligible) {
+            // Fallback: call on NotificationCompat.Builder directly (may not propagate to framework builder)
+            try {
+                val method = builder.javaClass.getMethod("setRequestPromotedOngoing")
                 method.invoke(builder)
             } catch (_: Exception) {
                 // Silently ignore
             }
-        }
-
-        // ColorOS-specific: android.requestPromotedOngoing is a private bundle extra
-        // that ColorOS reads to promote the notification to LiveUpdate UI.
-        // This is the actual key that base.apk uses to show LiveUpdate on ColorOS.
-        // Note: We call this TWICE (once after requestPromotedOngoing() call above) to ensure
-        // both the framework's requestPromotedOngoing() and ColorOS's private extra are set.
-        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                builder.extras.putBoolean("android.requestPromotedOngoing", true)
-            } catch (_: Exception) {
-                // Silently ignore
-            }
-        }
-
-        // Android 16 (SDK 36): setShortCriticalText(null) is required for LiveUpdate promotion.
-        // This is what Cmd2Gui calls in its g.a() method on the framework Notification.Builder.
-        // Without this, the notification may not be promoted to LiveUpdate on ColorOS 16.
-        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
                 val method = builder.javaClass.getMethod("setShortCriticalText", CharSequence::class.java)
                 method.invoke(builder, null)
+            } catch (_: Exception) {
+                // Silently ignore
+            }
+            try {
+                builder.extras.putBoolean("android.requestPromotedOngoing", true)
             } catch (_: Exception) {
                 // Silently ignore
             }
