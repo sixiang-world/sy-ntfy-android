@@ -288,6 +288,18 @@ class NotificationService(val context: Context) {
                 // Silently ignore
             }
         }
+
+        // Android 16 (SDK 36): setShortCriticalText(null) is required for LiveUpdate promotion.
+        // This is what Cmd2Gui calls in its g.a() method on the framework Notification.Builder.
+        // Without this, the notification may not be promoted to LiveUpdate on ColorOS 16.
+        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            try {
+                val method = builder.javaClass.getMethod("setShortCriticalText", CharSequence::class.java)
+                method.invoke(builder, null)
+            } catch (_: Exception) {
+                // Silently ignore
+            }
+        }
     }
 
     /**
