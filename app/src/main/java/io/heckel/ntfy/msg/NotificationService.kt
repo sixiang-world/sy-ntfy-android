@@ -211,24 +211,27 @@ class NotificationService(val context: Context) {
     }
 
     /**
-     * Apply LiveUpdate settings for Android 16+ (ColorOS/OriginOS/Pixel).
-     *
-     * ColorOS/OriginOS: Notifications with ongoing=true + progress bar are automatically promoted
-     * to fluid pill UI without explicit API calls. The system detects these conditions.
-     *
-     * Native Android 16: POST_PROMOTED_NOTIFICATIONS permission + setLiveUpdateAllowed(true) on the
-     * channel + setLiveUpdateEnabled(true) + setCategory(CATEGORY_PROGRESS) + setOngoing(true)
-     * are required for full LiveUpdate promotion.
-     */
-    /**
      * Apply LiveUpdate settings for Android 16+ (ColorOS/OriginOS/Pixel/native).
      *
-     * ColorOS/OriginOS: Notifications with ongoing=true + progress bar are automatically promoted
-     * to fluid pill UI without explicit API calls. The system detects these conditions.
+     * Two parallel paths are supported:
      *
-     * Native Android 16: POST_PROMOTED_NOTIFICATIONS permission + setLiveUpdateAllowed(true) on the
-     * channel + setCategory(CATEGORY_PROGRESS) + setOngoing(true) + requestPromotedOngoing()
-     * are required for full LiveUpdate promotion.
+     * 1) Native Android 16 path (Pixel, etc.):
+     *    - POST_PROMOTED_NOTIFICATIONS permission declared in manifest
+     *    - NotificationChannel.setLiveUpdateAllowed(true) via reflection (channel-level)
+     *    - NotificationCompat.Builder.setLiveUpdateEnabled(true) via reflection
+     *    - setCategory(CATEGORY_PROGRESS)
+     *    - setOngoing(true)
+     *    - requestPromotedOngoing() via reflection (Notification.Builder method)
+     *
+     * 2) ColorOS私有通道 (ColorOS 15/16, OriginOS, etc.):
+     *    - setOngoing(true)
+     *    - android.requestPromotedOngoing extra in Notification extras bundle (private API)
+     *    - Custom RemoteViews via setCustomBigContentView/setCustomContentView
+     *
+     * The standard path requires BigTextStyle (no RemoteViews), but since ntfy uses RemoteViews
+     * for rich UI (download progress, actions), we use the ColorOS private extra for ColorOS
+     * devices, while the standard path ensures compatibility with native Android 16.
+     * RemoteViews still work on ColorOS (fluid pill) via the private extra override.
      */
     private fun applyLiveUpdateSettings(builder: NotificationCompat.Builder, subscription: Subscription, notification: Notification, insistent: Boolean) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
@@ -276,17 +279,8 @@ class NotificationService(val context: Context) {
         // ColorOS-specific: android.requestPromotedOngoing is a private bundle extra
         // that ColorOS reads to promote the notification to LiveUpdate UI.
         // This is the actual key that base.apk uses to show LiveUpdate on ColorOS.
-        if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                builder.extras.putBoolean("android.requestPromotedOngoing", true)
-            } catch (_: Exception) {
-                // Silently ignore
-            }
-        }
-
-        // ColorOS-specific: android.requestPromotedOngoing is a private bundle extra
-        // that ColorOS reads to promote the notification to LiveUpdate UI.
-        // This is the actual key that base.apk uses to show LiveUpdate on ColorOS.
+        // Note: We call this TWICE (once after requestPromotedOngoing() call above) to ensure
+        // both the framework's requestPromotedOngoing() and ColorOS's private extra are set.
         if (isLiveUpdateEligible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
                 builder.extras.putBoolean("android.requestPromotedOngoing", true)
